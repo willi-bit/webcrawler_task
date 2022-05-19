@@ -1,74 +1,76 @@
 import os
 from bs4 import  BeautifulSoup
 import requests
-import csv
-import webbrowser
-""""
-def create_project_dir(directory):
-    if not os.path.exists(directory):
-        print(f'Creating directory: {directory}')
-        os.makedirs(directory)
+import json
+import re
 
-def create_data_files(project_name, base_url):
-    queue = project_name + '/queue.txt'
-    crawled = project_name + '/crawled.txt'
-    if not os.path.isfile(queue):
-        write_file(queue, base_url)
-    if not os.path.isfile(crawled):
-        write_file(crawled, '')
-
-def write_file(path, data):
-    f = open(path, 'w')
-    f.write(data)
-    f.close()
-
-#Add content to existing file
-def append_to_file(path, data):
-    with open(path, 'a', encoding="utf-8") as file:
-        file.write(data + '\n')
-
-def delete_file_content(path):
-    with open(path, 'w'):
-        pass
-
-def file_to_set(file_name):
-    results = set()
-    with open(file_name,'rt') as f:
-        for line in f:
-            results.add(line.strip()) #maybe i have to replace with .replace('\n', '')
-    return results
-
-def set_to_file(path, data):
-    delete_file_content(path)
-    for link in sorted(data):
-        append_to_file(path, link)
-"""""
 def run():
     base_url = 'https://www.springerprofessional.de'
     html = requests.get('https://www.springerprofessional.de/wasserwirtschaft-4-2019/16592584').text
     #Creating the soup with the plain html
     soup = BeautifulSoup(html, 'html.parser')
 
-    links = set()
-
-    #JSON dataset:
-    ausgabe, datum, jahr, kategorie, titel, autoren, url = []
-    data_set = {'Ausgabe':ausgabe,'Datum':datum,'Jahr':jahr,'Kategorie':kategorie,'Titel':titel,'Autoren':autoren,'URL':url}
 
 
-    #Searching for all hrefs under the "Inhaltsverzeichnis" sections, adding the b
+    #A dict with all required types:
+    data = {
+            'Ausgabe':'',
+            'Datum':'',
+            'Jahr':'',
+            'Kategorie':'',
+            'Titel':'',
+            'Autoren':'',
+            'URL':''
+            }
+
+    #The starting page title is equal to the Ausgabe, as all content listed below was published in this paper
+    text = soup.select_one('h1.issue-title').text
+    text = re.findall(r'\d+', text)#this finds all positive integers
+
+    count = soup.select_one('span.tertiary').text
+    count = int(re.findall(r'\d+', count)[0])
+    # to initalize a list of data with the required amount
+    data_list = []
+    for x in range(count):
+        data_list.append(data)
+    #first number of the headline is the Ausgabe, second number is the year of release
+    #ausgabe.append(text[0])
+    #jahr.append(text[1])
+
+    links = list()
+
+    i = 0
+    #Searching for all hrefs under the "Inhaltsverzeichnis" sections, adding the base-url if the html doc uses relative links
     for section in soup.find_all('section', class_='teaser cf'):
+        data_list[i]['Ausgabe'] = text[0]
+        data_list[i]['Jahr'] = text[1]
+
+        #Putting it in here, as every section was published in the same paper with the same years etc.
         link = section.find('a').get("href")
         if base_url in link:
-            links.add(link)
+            links.append(link)
         else:
-            links.add(base_url + link)
+            links.append(base_url + link)
+        i += 1
 
-    #Creating queue, remaining pages that have to be scraped
-    #Maybe copying it into a file, would be more readable: set_to_file('springer/queue.txt', links)
-    for link in sorted(links): #sorted by alphabetic order
+    i = 0
+    for link in links: #going through each page found on the main page in order they were found
+        print(i)
         page = BeautifulSoup(requests.get(link).text, 'html.parser')
-        page.select('h1').text
+        datum_kategorie = page.select_one('p.tag-line--default').text.strip()
+        dat_kag_text = datum_kategorie.split('|')
+        data_list[i]['Datum'] = dat_kag_text[0]
+        data_list[i]['Kategorie'] = dat_kag_text[1].strip()
 
+        autoren_text = page.find('p', class_='authors-info-display rich-text') #select_one caused a bug here, as it always returned None, but find with th exact same parameters worked
+        if(autoren_text is not None): #some pages do not have listed authors
+            data_list[i]['Autoren'] = re.sub("\s+", " ",autoren_text.text).replace('verfasst von: ','').strip()
+        else:
+            data_list[i]['Autoren'] = ''
+        data_list[i]['URL'] = link
+        data_list[i]['Titel'] = page.select_one('h1').text
+        print(data_list)
+        i += 1
+    print(data_list)
 if __name__ == '__main__':
     run()
