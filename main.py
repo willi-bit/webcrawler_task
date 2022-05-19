@@ -4,13 +4,12 @@ import requests
 import json
 import re
 
+
 def run():
     base_url = 'https://www.springerprofessional.de'
     html = requests.get('https://www.springerprofessional.de/wasserwirtschaft-4-2019/16592584').text
     #Creating the soup with the plain html
     soup = BeautifulSoup(html, 'html.parser')
-
-
 
     #A dict with all required types:
     data = {
@@ -23,19 +22,19 @@ def run():
             'URL':''
             }
 
-    #The starting page title is equal to the Ausgabe, as all content listed below was published in this paper
-    text = soup.select_one('h1.issue-title').text
-    text = re.findall(r'\d+', text)#this finds all positive integers
-
     count = soup.select_one('span.tertiary').text
     count = int(re.findall(r'\d+', count)[0])
     # to initalize a list of data with the required amount
     data_list = []
+
     for x in range(count):
-        data_list.append(data)
+        data_list.append(data.copy())
+    #in Python, lists are similar to a Pointer-Array in C, therefore
+
     #first number of the headline is the Ausgabe, second number is the year of release
-    #ausgabe.append(text[0])
-    #jahr.append(text[1])
+    # The starting page title is equal to the Ausgabe, as all content listed below was published in this paper
+    text = soup.select_one('h1.issue-title').text
+    text = re.findall(r'\d+', text)  # this finds all positive integers
 
     links = list()
 
@@ -55,7 +54,6 @@ def run():
 
     i = 0
     for link in links: #going through each page found on the main page in order they were found
-        print(i)
         page = BeautifulSoup(requests.get(link).text, 'html.parser')
         datum_kategorie = page.select_one('p.tag-line--default').text.strip()
         dat_kag_text = datum_kategorie.split('|')
@@ -69,8 +67,13 @@ def run():
             data_list[i]['Autoren'] = ''
         data_list[i]['URL'] = link
         data_list[i]['Titel'] = page.select_one('h1').text
-        print(data_list)
+
         i += 1
-    print(data_list)
+
+
+    with open('result.json', 'w') as f:
+        f.write(json.dumps(data_list))
+        f.close()
+
 if __name__ == '__main__':
     run()
